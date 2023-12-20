@@ -1,0 +1,40 @@
+minikube start --extra-config=apiserver.Authorization.Mode=RBAC
+kubectl create namespace office
+openssl genrsa -out emp.key 2048
+openssl req -new -key emp.key -out emp.csr -subj "/CN=emp/O=dev"
+name :emp
+group: dev
+openssl x509 -req -in emp.csr -CA ~/.minikube/./ca.crt -CAkey ~/.minikube/./ca.key -CAcreateserial -out emp.crt -days 500
+CA_FOLDER ~/.minikube/. or /etc/kubernetes/pki/.
+kubectl config set-context dev-ctx --cluster=minikube --namespace=dev --user=emp
+kubectl config set-credentials emp --client-certificate=./emp.crt  --client-key=./emp.key
+
+
+kind: Role
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  namespace: dev
+  name: emp-role
+rules:
+- apiGroups: [""] 
+  resources: ["pods", "deployments"]
+  verbs: ["get", "list"]
+
+
+kind: RoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: fresco-read-pods
+  namespace: default
+subjects:
+- kind: User
+  name: emp # Name is case sensitive
+  apiGroup: rbac.authorization.k8s.io
+roleRef:
+  kind: Role #this has to be Role or ClusterRole
+  name: emp-role # this must match the name of the Role or ClusterRole you wish to bind to
+  apiGroup: rbac.authorization.k8s.io
+
+kubectl --context=dev-ctx run --image=nginx --namespace=dev
+
+kubectl --context=employee-context get pods
